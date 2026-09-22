@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>TradeVision</title>
+
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+
+<style>
+body{
+  margin:0;
+  background:#0b1220;
+  color:#e2e8f0;
+  font-family:Inter,Arial;
+  overflow:hidden;
+}
+
+.app{
+  display:grid;
+  grid-template-columns:220px 1fr 280px;
+  grid-template-rows:1fr;
+  height:100vh;
+}
+
+/* LEFT SIDEBAR */
+.sidebar{
+  background:#111827;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  overflow-y:auto;
+}
+
+.sidebar input,
+.sidebar select{
+  width:100%;
+  padding:6px 8px;
+  border:none;
+  border-radius:6px;
+  background:#1f2937;
+  color:white;
+}
+
+.sidebar button{
+  padding:8px;
+  border:none;
+  border-radius:6px;
+  background:#2563eb;
+  color:white;
+  cursor:pointer;
+}
+
+/* MAIN */
+.main{
+  display:flex;
+  flex-direction:column;
+  padding:16px;
+}
+
+.top-controls{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:20px;
+  margin-bottom:12px;
+}
+.top-controls{
+  font-size:15px;
+  font-weight:500;
+}
+
+#sessionInfo{
+  font-size:15px;
+  font-weight:600;
+  letter-spacing:0.5px;
+}
+.top-controls .control-group:last-child{
+  margin-left:auto;
+}
+
+button{
+  padding:6px 10px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+.icon{background:#1f2937;color:white;}
+.accent{background:#2563eb;color:white;}
+.buy{background:#16a34a;color:white;}
+.sell{background:#dc2626;color:white;}
+.neutral{background:#334155;color:white;}
+
+#chart{
+  flex:1;
+  margin-top:8px;
+}
+
+#headerBar{
+  display:flex;
+  justify-content:space-between;
+  font-size:16px;     /* increased */
+  font-weight:500;
+  margin-top:6px;
+}
+
+#tradePanel{
+  margin-top:6px;
+  font-weight:bold;
+}
+
+/* RIGHT ANALYTICS */
+.analytics{
+  background:#0f172a;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+  overflow-y:auto;
+
+  border-left:1px solid #1f2937;
+  box-shadow:-4px 0 20px rgba(0,0,0,0.25);
+}
+
+/* Section Headings */
+.analytics h4{
+  margin:0 0 6px 0;
+  font-size:13px;
+  letter-spacing:0.5px;
+  text-transform:uppercase;
+  color:#94a3b8;
+}
+
+/* Equity Panel */
+#equityPanel{
+  background:#111827;
+  padding:12px;
+  border-radius:10px;
+  border:1px solid #1f2937;
+}
+
+#equityPanel canvas{
+  width:100%;
+  background:#0b1220;
+  border-radius:6px;
+}
+
+/* Trade History Container */
+#tradeLog{
+  max-height:80px;   /* reduced further */
+  overflow-y:auto;
+  background:#0b1220;
+  padding:10px;
+  border-radius:10px;
+  font-size:12px;
+  border:1px solid #1f2937;
+}
+
+/* Smooth Scrollbar */
+#tradeLog::-webkit-scrollbar{
+  width:6px;
+}
+
+#tradeLog::-webkit-scrollbar-thumb{
+  background:#334155;
+  border-radius:4px;
+}
+
+#tradeLog::-webkit-scrollbar-track{
+  background:transparent;
+}
+  .analytics-btn {
+  width:100%;
+  margin-bottom:10px;
+  padding:6px;
+  font-size:12px;
+  background:#1f2937;
+  border:1px solid #374151;
+  color:#9ca3af;
+  border-radius:6px;
+  cursor:pointer;
+}
+.analytics-btn:hover {
+  background:#374151;
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- LEFT CONTROLS -->
+  <div id="sidebar" class="sidebar">
+
+    <h3>TradeVision</h3>
+
+    <div style="position:relative;">
+      <input id="symbol" placeholder="Search Symbol">
+      <div id="symbolResults"
+           style="position:absolute;
+                  top:38px;
+                  left:0;
+                  right:0;
+                  background:#1e293b;
+                  max-height:200px;
+                  overflow-y:auto;
+                  display:none;
+                  border-radius:6px;
+                  z-index:1000;">
+      </div>
+    </div>
+
+    <select id="regime">
+      <option value="">Auto</option>
+      <option value="bull">Bull</option>
+      <option value="bear">Bear</option>
+      <option value="range">Range</option>
+    </select>
+
+    <select id="mode">
+      <option value="swing">Swing</option>
+      <option value="intraday">Intraday</option>
+    </select>
+
+    <select id="difficulty">
+      <option value="rookie">Rookie</option>
+      <option value="pro">Pro</option>
+      <option value="institutional">Institutional</option>
+    </select>
+
+    <input id="seedInput" placeholder="Seed">
+
+    <label style="font-size:12px;">Projection Length</label>
+    <input id="lengthInput" type="number" value="100" min="20" max="300">
+
+    <label>
+      <input type="checkbox" id="institutionalModeToggle">
+      Institutional Mode
+    </label>
+
+    <button onclick="startSimulation()">Start</button>
+
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <div class="top-controls">
+
+      <div class="control-group">
+        <button onclick="playSimulation()" class="icon">▶</button>
+        <button onclick="pauseSimulation()" class="icon">⏸</button>
+        <button onclick="fastForward()" class="icon">⚡</button>
+        <button onclick="resetSession()" class="icon">↺</button>
+        <button onclick="restartSession()" class="icon">⟲</button>
+      </div>
+
+      <div class="control-group">
+<span id="sessionInfo">Replays: 0</span>
+<button onclick="takeSnapshot()" class="accent">📸</button>
+<button onclick="showPerformanceReport()" class="accent">📊</button>
+      </div>
+
+    </div>
+
+    <div id="headerBar">
+      <div id="symbolInfo">Symbol: - | TF: 1D</div>
+      <div id="ohlcInfo">O:- H:- L:- C:-</div>
+    </div>
+
+    <div id="chart"></div>
+
+    <div class="control-group" style="margin-top:8px;">
+      <button onclick="enterTrade('buy')" class="buy">Buy</button>
+      <button onclick="enterTrade('sell')" class="sell">Sell</button>
+      <button onclick="closeTrade('Manual')" class="neutral">Close</button>
+      <input id="stopInput" placeholder="Stop">
+      <button onclick="setStop()" class="neutral">Set SL</button>
+    </div>
+
+    <div id="tradePanel">No Active Trade</div>
+
+  </div>
+
+  <!-- RIGHT ANALYTICS -->
+  <div class="analytics">
+
+    <h4>Analytics</h4>
+
+    <div id="equityPanel">
+      <button id="projectionBtn" class="analytics-btn">
+  Scenario Mapping (Beta)
+    
+      </button>
+      <button id="resetPerformanceBtn" class="analytics-btn">
+  Reset Performance
+</button>
+      <h4>Equity Curve</h4>
+      <canvas id="equityCanvas" height="120"></canvas>
+    </div>
+
+    <div id="liveMetricsBox"></div>
+
+    <div>
+ 
+      <h4>Trade History</h4>
+      <div id="tradeLog"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- CORE -->
+<script src="/ui-core.js"></script>
+
+<!-- MODULES -->
+<script src="/ui-modules/equity.module.js"></script>
+<script src="/ui-modules/session-status.module.js"></script>
+<script src="/ui-modules/live-metrics.module.js"></script>
+<script src="/ui-modules/trade-badge.module.js"></script>
+<script src="/ui-modules/watermark.module.js"></script>
+<script src="/ui-modules/trade-markers.module.js"></script>
+<script src="/ui-modules/ui-projection-v8.js"></script>
+<script src="ui-modules/ui-performance-grade.js"></script>
+<script src="ui-modules/ui-session-tracker.js"></script>
+<script src="/ui-modules/auth.module.js"></script>
+
+<!-- html2canvas for report download -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<!-- PAGE LOGIC -->
+<script>
+async function startSimulation(){
+
+  const symbol = symbolInput.value.trim();
+
+  if(!symbol){
+    alert("Please select a symbol.");
+    return;
+  }
+document.dispatchEvent(new Event("simulationStarted"));
+  // 🔹 Expose active simulation symbol safely
+  window.currentSymbol = symbol;
+
+  // Optional: also expose timeframe if needed later
+  window.currentTimeframe = "1D";
+
+  const regime=document.getElementById("regime").value;
+  const mode=document.getElementById("mode").value;
+  const difficulty=document.getElementById("difficulty").value;
+  const seedInput=document.getElementById("seedInput").value;
+  const institutional=document.getElementById("institutionalModeToggle").checked;
+  const lengthInput=document.getElementById("lengthInput").value;
+
+  const response=await fetch("/api/simulate_v7",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({
+      symbol,
+      regime,
+      length:Number(lengthInput)||100,
+      seed:seedInput?Number(seedInput):null,
+      mode,
+      difficulty,
+      institutionalMode:institutional
+    })
+  });
+
+  if(!response.ok){
+    const text=await response.text();
+    console.log("Simulation error:",text);
+    return;
+  }
+
+  const data=await response.json();
+
+  document.getElementById("symbolInfo").innerText=
+    "Symbol: "+symbol+" | TF: 1D | Seed:"+data.seed;
+
+  loadSimulationData(data.history,data.simulated);
+}
+</script>
+
+<!-- BRANDED SNAPSHOT -->
+<script>
+window.takeSnapshot = function(){
+
+  if(!chart) return;
+
+  const baseCanvas = chart.takeScreenshot();
+  const footerHeight = 220;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = baseCanvas.width;
+  canvas.height = baseCanvas.height + footerHeight;
+
+  const ctx = canvas.getContext("2d");
+
+  ctx.drawImage(baseCanvas, 0, 0);
+
+  // ---------- WATERMARK ----------
+  ctx.save();
+  ctx.globalAlpha = 0.04;
+  ctx.translate(canvas.width/2, baseCanvas.height/2);
+  ctx.rotate(-Math.PI/6);
+  ctx.textAlign="center";
+  ctx.font="bold 90px Inter, Arial";
+  ctx.fillStyle="#ffffff";
+  ctx.fillText("TradeVision by TARA",0,0);
+  ctx.restore();
+
+  // ---------- FOOTER BACKGROUND ----------
+  const gradient = ctx.createLinearGradient(0, baseCanvas.height, 0, canvas.height);
+  gradient.addColorStop(0, "#0f172a");
+  gradient.addColorStop(1, "#020617");
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, baseCanvas.height, canvas.width, footerHeight);
+
+  // ---------- LOAD LOGO ----------
+  const logo = new Image();
+  logo.src = "/TARA-LOGO.jpeg";
+
+  logo.onload = function(){
+
+    ctx.drawImage(logo, 30, baseCanvas.height+30, 120, 120);
+
+    const symbol = document.getElementById("symbol").value || "N/A";
+    const seed = document.getElementById("seedInput").value || "Auto";
+
+    const total = tradeHistory.length;
+    const wins = tradeHistory.filter(t=>t.pnl>0).length;
+    const net = tradeHistory.reduce((a,b)=>a+b.pnl,0);
+
+    ctx.fillStyle="#e2e8f0";
+    ctx.font="bold 22px Inter, Arial";
+    ctx.fillText("TradeVision™ — Regime-Aware Market Simulator", 180, baseCanvas.height+45);
+
+    ctx.font="14px Inter, Arial";
+    ctx.fillStyle="#94a3b8";
+    ctx.fillText("Symbol: "+symbol, 180, baseCanvas.height+75);
+    ctx.fillText("Seed: "+seed, 180, baseCanvas.height+95);
+    ctx.fillText("Generated: "+new Date().toLocaleString(), 180, baseCanvas.height+115);
+
+    // ---------- PERFORMANCE SUMMARY ----------
+    ctx.textAlign="right";
+    ctx.fillStyle="#e2e8f0";
+    ctx.font="bold 16px Inter, Arial";
+    ctx.fillText("Session Summary", canvas.width-40, baseCanvas.height+50);
+
+    ctx.font="14px Inter, Arial";
+    ctx.fillStyle="#94a3b8";
+    ctx.fillText("Total Trades: "+total, canvas.width-40, baseCanvas.height+80);
+    ctx.fillText("Win Rate: "+(total?((wins/total)*100).toFixed(1):0)+"%", canvas.width-40, baseCanvas.height+100);
+
+    ctx.fillStyle = net>=0 ? "#22c55e" : "#ef4444";
+    ctx.fillText("Net PnL: "+net.toFixed(2), canvas.width-40, baseCanvas.height+120);
+
+    ctx.textAlign="right";
+    ctx.fillStyle="#64748b";
+    ctx.font="12px Inter, Arial";
+    ctx.fillText("Confidential Simulation Output", canvas.width-40, baseCanvas.height+160);
+
+    // ---------- EXPORT ----------
+    const now = new Date();
+    const timestamp = now.getFullYear()+"-"+(now.getMonth()+1)+"-"+now.getDate()+"_"+now.getHours()+"-"+now.getMinutes();
+
+    const link = document.createElement("a");
+    link.download = symbol+"_TradeVision_"+timestamp+".png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+};
+</script>
+
+<!-- REPORT MODAL -->
+<div id="reportModal" style="
+  position:fixed;
+  inset:0;
+  background:rgba(2,6,23,0.85);
+  backdrop-filter:blur(6px);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:9999;
+">
+
+  <div id="reportContent" style="
+    width:560px;
+    background:linear-gradient(145deg,#0f172a,#111827);
+    padding:32px;
+    border-radius:16px;
+    color:white;
+    box-shadow:0 25px 60px rgba(0,0,0,0.6);
+    border:1px solid rgba(255,255,255,0.05);
+  ">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2 style="margin:0;font-size:22px;">TradeVision™ Performance Report</h2>
+      <span style="font-size:12px;color:#64748b;">Pro Simulation Output</span>
+    </div>
+
+    <div id="reportStats" style="
+      margin-top:28px;
+      font-size:16px;
+      line-height:1.9;
+    "></div>
+
+    <div style="
+      margin-top:28px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    ">
+      <div style="font-size:12px;color:#64748b;">
+        Generated on <span id="reportDate"></span>
+      </div>
+      <div>
+        <button onclick="downloadReport()" class="accent">Download</button>
+        <button onclick="closeReport()" class="neutral">Close</button>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ================= PREMIUM REPORT LOGIC =================
+
+window.showPerformanceReport = function(){
+
+  if(!window.tradeHistory || !tradeHistory.length){
+    alert("No trades yet.");
+    return;
+  }
+
+  const symbol = document.getElementById("symbol").value || "N/A";
+  const symbolInfo = document.getElementById("symbolInfo").innerText;
+
+  const total = tradeHistory.length;
+  const wins = tradeHistory.filter(t=>t.pnl>0).length;
+  const net = tradeHistory.reduce((a,b)=>a+b.pnl,0);
+
+  let equity=0,peak=0,maxDD=0;
+  tradeHistory.forEach(t=>{
+    equity+=t.pnl;
+    peak=Math.max(peak,equity);
+    maxDD=Math.max(maxDD,peak-equity);
+  });
+
+  const winRate = ((wins/total)*100).toFixed(1);
+  const netColor = net>=0 ? "#22c55e" : "#ef4444";
+
+  document.getElementById("reportStats").innerHTML = `
+    <div style="margin-bottom:14px;color:#94a3b8;">${symbolInfo}</div>
+    <div>Total Trades: <strong>${total}</strong></div>
+    <div>Win Rate: <strong>${winRate}%</strong></div>
+    <div>Net PnL: <strong style="color:${netColor}">${net.toFixed(2)}</strong></div>
+    <div>Max Drawdown: <strong>${maxDD.toFixed(2)}</strong></div>
+  `;
+
+  document.getElementById("reportDate").innerText =
+    new Date().toLocaleString();
+
+  document.getElementById("reportModal").style.display="flex";
+};
+
+
+// ---------- CLOSE MODAL ----------
+window.closeReport = function(){
+  document.getElementById("reportModal").style.display="none";
+};
+
+
+// ---------- DOWNLOAD REPORT (AUTO CLOSE + BRANDED NAME) ----------
+window.downloadReport = async function(){
+
+  const symbol = document.getElementById("symbol").value || "N/A";
+
+  const canvas = await html2canvas(
+    document.getElementById("reportContent")
+  );
+
+  const now = new Date();
+  const timestamp =
+    now.getFullYear()+"-"+(now.getMonth()+1)+"-"+now.getDate()+"_"+
+    now.getHours()+"-"+now.getMinutes();
+
+  const link = document.createElement("a");
+  link.download = symbol+"_TradeVision_Report_"+timestamp+".png";
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+
+  // AUTO CLOSE AFTER DOWNLOAD
+  document.getElementById("reportModal").style.display="none";
+};
+</script>
+
+</body>
+</html>
